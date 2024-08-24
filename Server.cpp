@@ -47,14 +47,6 @@ int main(int argc, char* argv[]) {
     }
     serverAddress.sin_port = htons(usPort);
 
-    // Convert the binary IP address to a string
-    char ipAddressStr[INET_ADDRSTRLEN]; // Buffer for IP address string
-    inet_ntop(AF_INET, &(serverAddress.sin_addr), ipAddressStr, INET_ADDRSTRLEN);
-
-    // Convert the port number to a string
-    std::string tmp = ":";
-    std::string address = ip + tmp + port;
-
     // Bind the socket to an address
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR) 
     {
@@ -67,6 +59,8 @@ int main(int argc, char* argv[]) {
     // Listen for incoming connections
     listen(serverSocket, SOMAXCONN);
 
+    std::string tmp = ":";
+    std::string address = ip + tmp + port;
     std::cout << "Server listening on port " + address + " ..." << std::endl;
 
     // Accept client connections
