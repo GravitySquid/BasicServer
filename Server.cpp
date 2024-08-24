@@ -5,8 +5,26 @@
 
 #pragma comment(lib, "ws2_32.lib") // Link with Winsock library
 
-int main() {
-    std::cout << "This is the Server...." << std::endl;
+int main(int argc, char* argv[]) {
+    std::cout << "Server started...." << std::endl;
+
+    const char* ip, * port;
+    if (argc == 2) // Expect IP & port number
+    {
+        ip = argv[1];
+        port = argv[2];
+    }
+    else // defaults
+    {
+        std::cout << "Default parameters used ... " << std::endl;
+        ip = "127.0.0.1"; // localhost (IPv4 loopback address)
+        port = "27016";
+    }
+    std::cout << "IP to listen to ..... " << ip << std::endl;
+    std::cout << "Port to listen to ... " << port << std::endl;
+
+    // Convert port
+    unsigned short  usPort = (unsigned short)std::stoi(port);
 
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -23,12 +41,11 @@ int main() {
 
     sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
-    // Set to localhost (IPv4 loopback address)
-    if (inet_pton(AF_INET, "127.0.0.1", &(serverAddress.sin_addr)) != 1) {
+    if (inet_pton(AF_INET, ip, &(serverAddress.sin_addr)) != 1) {
         std::cerr << "Error setting address to localhost." << std::endl;
         return 1;
     }
-    serverAddress.sin_port = htons(27016);
+    serverAddress.sin_port = htons(usPort);
 
     // Convert the binary IP address to a string
     char ipAddressStr[INET_ADDRSTRLEN]; // Buffer for IP address string
@@ -36,10 +53,11 @@ int main() {
 
     // Convert the port number to a string
     std::string tmp = ":";
-    std::string address = ipAddressStr + tmp + std::to_string(ntohs(serverAddress.sin_port));
+    std::string address = ip + tmp + port;
 
     // Bind the socket to an address
-    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR) {
+    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR) 
+    {
         std::cerr << "Bind failed." << std::endl;
         closesocket(serverSocket);
         WSACleanup();
