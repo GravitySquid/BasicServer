@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Server started...." << std::endl;
 
     const char* ip, * port;
-    if (argc == 2) // Expect IP & port number
+    if (argc == 3) // Expect IP & port number
     {
         ip = argv[1];
         port = argv[2];
