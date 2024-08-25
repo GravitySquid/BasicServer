@@ -1,3 +1,14 @@
+/**
+ * @file	Server.cpp
+ * @brief	A basic socket server.
+ *
+ * Basic socket server for Windows, using winsock2.
+ * Will take connections from multiple clients.
+ *
+ * @author	GravitySquid
+ * @date	2024/08/25
+ */
+
 #include <iostream>
 #include <string>
 #include <winsock2.h>
@@ -5,89 +16,171 @@
 
 #pragma comment(lib, "ws2_32.lib") // Link with Winsock library
 
+#define DATA_BUFSIZE 1024
+
 int main(int argc, char* argv[]) {
-    std::cout << "Server started...." << std::endl;
+	std::cout << "Server started...." << std::endl;
 
-    const char* ip, * port;
-    if (argc == 3) // Expect IP & port number
-    {
-        ip = argv[1];
-        port = argv[2];
-    }
-    else // defaults
-    {
-        std::cout << "Default parameters used ... " << std::endl;
-        ip = "127.0.0.1"; // localhost (IPv4 loopback address)
-        port = "27016";
-    }
-    std::cout << "IP to listen to ..... " << ip << std::endl;
-    std::cout << "Port to listen to ... " << port << std::endl;
+	// Check optional command line arguments
+	const char* ip, * port;
+	if (argc == 3) // Expect IP & port number
+	{
+		ip = argv[1];
+		port = argv[2];
+	}
+	else // default an IP & port number
+	{
+		std::cout << "Default parameters used ... " << std::endl;
+		ip = "127.0.0.1"; // localhost (IPv4 loopback address)
+		port = "27016";
+	}
+	std::cout << "Server IP ..... " << ip << std::endl;
+	std::cout << "Server Port ... " << port << std::endl;
 
-    // Convert port
-    unsigned short  usPort = (unsigned short)std::stoi(port);
+	// Convert port number to short
+	unsigned short  usPort = (unsigned short)std::stoi(port);
 
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed." << std::endl;
-        return 1;
-    }
-    // Create a socket
-    SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == INVALID_SOCKET) {
-        std::cerr << "Error creating socket." << std::endl;
-        WSACleanup();
-        return 1;
-    }
+	// Start WinSock API
+	WSADATA wsaData;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+		std::cerr << "WinSock API Startup failed." << std::endl;
+		return 1;
+	}
 
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    if (inet_pton(AF_INET, ip, &(serverAddress.sin_addr)) != 1) {
-        std::cerr << "Error setting address to localhost." << std::endl;
-        return 1;
-    }
-    serverAddress.sin_port = htons(usPort);
+	// Create a socket for server
+	SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if (serverSocket == INVALID_SOCKET) {
+		std::cerr << "Error creating socket." << std::endl;
+		WSACleanup();
+		return 1;
+	}
 
-    // Bind the socket to an address
-    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR) 
-    {
-        std::cerr << "Bind failed." << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
+	// Populate socket address struct
+	sockaddr_in serverAddress;
+	serverAddress.sin_family = AF_INET;
+	if (inet_pton(AF_INET, ip, &(serverAddress.sin_addr)) != 1) {
+		std::cerr << "Error setting server address." << std::endl;
+		return 1;
+	}
+	serverAddress.sin_port = htons(usPort);
 
-    // Listen for incoming connections
-    listen(serverSocket, SOMAXCONN);
+	// Bind the socket to address
+	if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == SOCKET_ERROR)
+	{
+		std::cerr << "Bind failed." << std::endl;
+		closesocket(serverSocket);
+		WSACleanup();
+		return 1;
+	}
 
-    std::string tmp = ":";
-    std::string address = ip + tmp + port;
-    std::cout << "Server listening on port " + address + " ..." << std::endl;
+	// Listen for any incoming connections
+	listen(serverSocket, SOMAXCONN);
 
-    // Accept client connections
-    SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "Accept failed." << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
+	std::string tmp = ":";
+	std::string address = ip + tmp + port;
+	std::cout << "Server listening on " + address + " ..." << std::endl;
 
-    char buffer[1024];
-    char bufferCopy[1024];
-    int bytesRead;
+	// Set the listening socket to non-blocking mode
+	//ULONG NonBlock = 1;
+	//if (ioctlsocket(serverSocket, FIONBIO, &NonBlock) == SOCKET_ERROR) {
+	//	printf("cCould not make server socked non-blocking - %d\n", WSAGetLastError());
+	//	//return 1;
+	//}
 
-    // Receive data from client and echo it back
-    while ((bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0)) > 0) {
-        strncpy_s(bufferCopy, buffer, bytesRead);
-        std::cout << "Data buffer received from client >>> " << bufferCopy << std::endl;
-        send(clientSocket, buffer, bytesRead, 0);
-    }
+	// initialise the set of client sockets
+	fd_set clientSocketSet;
+	FD_ZERO(&clientSocketSet);
 
-    // Clean up
-    closesocket(clientSocket);
-    closesocket(serverSocket);
-    WSACleanup();
+	char buffer[DATA_BUFSIZE];
+	int bytesRead;
 
-    std::cout << "Connection closed." << std::endl;
-    return 0;
+	fd_set read_set;
+	FD_ZERO(&read_set);
+
+	// Main server loop - keep active
+	while (true)
+	{
+		// List of sockets to check = client sockets + server socket for new clients
+		fd_set read_set = clientSocketSet;
+		FD_SET(serverSocket, &read_set);
+
+		// determine which sockets are ready for read
+		select(0, &read_set, NULL, NULL, NULL);
+
+		// Check if server socket has a new client to accept
+		if (FD_ISSET(serverSocket, &read_set))
+		{
+			SOCKADDR_IN ClientAddr;
+			int ClientAddrLen = sizeof(ClientAddr);
+
+			SOCKET clientSocket = accept(serverSocket, (SOCKADDR*)&ClientAddr, &ClientAddrLen);
+			FD_SET(clientSocket, &clientSocketSet); // add to client socket set
+
+			// show client IP address
+			char ipStr[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, &(ClientAddr.sin_addr), ipStr, INET_ADDRSTRLEN);
+
+			// Convert the port number to a string
+			char portString[6]; 
+			_itoa_s(ntohs(ClientAddr.sin_port), portString, 10);
+
+			// Display
+			std::cout << "New client connected from " << ipStr << ":" << portString << std::endl;
+			std::cout << "Current connections: " << clientSocketSet.fd_count << std::endl;
+		}
+
+		for (int i = 0; i < (int) read_set.fd_count; ++i)
+		{
+			// Check if a client is ready to read
+			if (FD_ISSET(read_set.fd_array[i], &clientSocketSet))
+			{
+				bytesRead = recv(read_set.fd_array[i], buffer, sizeof(buffer), 0);
+				if (bytesRead > 0)
+				{
+					std::string sBuff(buffer);
+					std::string msgRecv = sBuff.substr(0,bytesRead);
+					std::cout << "Data buffer received from client >>> " << msgRecv << std::endl;
+					// Send data to the client
+					std::string msgSend = "Got your message: " + msgRecv;
+					const char *message = msgSend.c_str();
+					std::cout << "send >> " << message << std::endl;
+					send(read_set.fd_array[i], message, (int) strlen(message), 0);
+				}
+				else
+				{
+					// Client has ended connection
+					// Find out the client connection details for display
+					SOCKET clientSocket = read_set.fd_array[i];
+					SOCKADDR_IN peerAddress;
+					int peerAddressSize = sizeof(peerAddress);
+					char ipStr[INET_ADDRSTRLEN];
+					if (getpeername(clientSocket, reinterpret_cast<SOCKADDR*>(&peerAddress), &peerAddressSize) == 0) {
+						inet_ntop(AF_INET, &(peerAddress.sin_addr), ipStr, INET_ADDRSTRLEN);
+						std::cout << "Client ended connection from " << ipStr
+							<< ":" << ntohs(peerAddress.sin_port) << std::endl;
+					}
+					else
+						std::cout << "Client ended connection" << std::endl;
+					
+					// Clean up
+					closesocket(clientSocket);
+
+					// Remove client from the set of client sockets
+					FD_CLR(clientSocket, &clientSocketSet);
+					std::cout << "Current connections: " << clientSocketSet.fd_count << std::endl;
+				}
+			}
+		}
+	}
+
+	// Clean up
+	for (int i = 0; i < (int) clientSocketSet.fd_count; ++i)
+	{
+		closesocket(clientSocketSet.fd_array[i]);
+	}
+	closesocket(serverSocket);
+	WSACleanup();
+
+	std::cout << "Server shutdown." << std::endl;
+	return 0;
 }
