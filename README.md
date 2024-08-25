@@ -1,2 +1,5 @@
-Basic socket server for Windows, using winsock2.
+Basic Server
+============
+
+Basic socket server for Windows platform, using winsock2.
 Will take connections from multiple clients.
