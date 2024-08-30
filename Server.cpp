@@ -18,6 +18,8 @@
 
 #define DATA_BUFSIZE 1024
 
+
+
 int main(int argc, char* argv[]) {
 	std::cout << "Server started...." << std::endl;
 
@@ -80,20 +82,14 @@ int main(int argc, char* argv[]) {
 	std::string address = ip + tmp + port;
 	std::cout << "Server listening on " + address + " ..." << std::endl;
 
-	// Set the listening socket to non-blocking mode
-	//ULONG NonBlock = 1;
-	//if (ioctlsocket(serverSocket, FIONBIO, &NonBlock) == SOCKET_ERROR) {
-	//	printf("cCould not make server socked non-blocking - %d\n", WSAGetLastError());
-	//	//return 1;
-	//}
-
 	// initialise the set of client sockets
 	fd_set clientSocketSet;
 	FD_ZERO(&clientSocketSet);
 
 	char buffer[DATA_BUFSIZE];
 	int bytesRead;
-
+	
+	// intialise a temp set for sockets ready to read
 	fd_set read_set;
 	FD_ZERO(&read_set);
 
@@ -107,7 +103,7 @@ int main(int argc, char* argv[]) {
 		// determine which sockets are ready for read
 		select(0, &read_set, NULL, NULL, NULL);
 
-		// Check if server socket has a new client to accept
+		// Check if the server socket has a new client to accept
 		if (FD_ISSET(serverSocket, &read_set))
 		{
 			SOCKADDR_IN ClientAddr;
@@ -131,7 +127,7 @@ int main(int argc, char* argv[]) {
 
 		for (int i = 0; i < (int) read_set.fd_count; ++i)
 		{
-			// Check if a client is ready to read
+			// Read from all the readable client sockets
 			if (FD_ISSET(read_set.fd_array[i], &clientSocketSet))
 			{
 				bytesRead = recv(read_set.fd_array[i], buffer, sizeof(buffer), 0);
@@ -140,21 +136,25 @@ int main(int argc, char* argv[]) {
 					std::string sBuff(buffer);
 					std::string msgRecv = sBuff.substr(0,bytesRead);
 					std::cout << "Data buffer received from client >>> " << msgRecv << std::endl;
+					
 					// Send data to the client
-					std::string msgSend = "Got your message: " + msgRecv;
+					//std::string msgSend = "Got your message - " + std::string(msgRecv);
+					std::string msgSend;
+					std::cout << "\033[32m" << "ENTER RESPONSE: > " << "\033[0m";
+					std::getline(std::cin, msgSend);
+
 					const char *message = msgSend.c_str();
 					std::cout << "send >> " << message << std::endl;
 					send(read_set.fd_array[i], message, (int) strlen(message), 0);
 				}
 				else
 				{
-					// Client has ended connection
+					// Zero bytes means the Client has ended the connection
 					// Find out the client connection details for display
-					SOCKET clientSocket = read_set.fd_array[i];
 					SOCKADDR_IN peerAddress;
 					int peerAddressSize = sizeof(peerAddress);
 					char ipStr[INET_ADDRSTRLEN];
-					if (getpeername(clientSocket, reinterpret_cast<SOCKADDR*>(&peerAddress), &peerAddressSize) == 0) {
+					if (getpeername(read_set.fd_array[i], reinterpret_cast<SOCKADDR*>(&peerAddress), &peerAddressSize) == 0) {
 						inet_ntop(AF_INET, &(peerAddress.sin_addr), ipStr, INET_ADDRSTRLEN);
 						std::cout << "Client ended connection from " << ipStr
 							<< ":" << ntohs(peerAddress.sin_port) << std::endl;
@@ -163,10 +163,10 @@ int main(int argc, char* argv[]) {
 						std::cout << "Client ended connection" << std::endl;
 					
 					// Clean up
-					closesocket(clientSocket);
+					closesocket(read_set.fd_array[i]);
 
 					// Remove client from the set of client sockets
-					FD_CLR(clientSocket, &clientSocketSet);
+					FD_CLR(read_set.fd_array[i], &clientSocketSet);
 					std::cout << "Current connections: " << clientSocketSet.fd_count << std::endl;
 				}
 			}
@@ -175,9 +175,7 @@ int main(int argc, char* argv[]) {
 
 	// Clean up
 	for (int i = 0; i < (int) clientSocketSet.fd_count; ++i)
-	{
 		closesocket(clientSocketSet.fd_array[i]);
-	}
 	closesocket(serverSocket);
 	WSACleanup();
 
