@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build (Linux - Clang)",
+            "type": "shell",
+            "command": "clang++",
+            "args": [
+                "-std=c++20",           // Modern C++ standard (change to c++17 or c++11 if needed)
+                "-g",                   // Debug symbols (essential for debugging)
+                "-O0",                  // No optimization (best for debugging)
+                "-Wall",                // Enable warnings
+                "-Wextra",              // Extra warnings
+                "-pthread",             // If you're using threads
+                "-o",
+                "Server",
+                "Main.cpp",
+                "Server.cpp"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],   // Works well with clang too
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build (Linux - Clang Release)",
+            "type": "shell",
+            "command": "clang++",
+            "args": [
+                "-std=c++20",
+                "-O2",                  // Optimization for release
+                "-DNDEBUG",
+                "-Wall",
+                "-Wextra",
+                "-pthread",
+                "-o",
+                "Server",
+                "Main.cpp",
+                "Server.cpp"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "${workspaceFolder}/Server",
+            "dependsOn": "build (Linux - Clang)",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
